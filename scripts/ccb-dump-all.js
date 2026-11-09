@@ -16,13 +16,13 @@
  *
  * ===================== QX 配置 =====================
  * [rewrite_local]
- * ^https?:\/\/.+\.ccb\.com\/ url script-request-body https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js
+ * ^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js
  *
  * [task_local]
  * event-interaction https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js, tag=建行dump, enabled=true
  *
  * [mitm]
- * hostname = %APPEND% *.ccb.com, *.ccb.com.cn
+ * hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
  *
  * 注意 [mitm] 匹配的是 TLS SNI，所以写 *.ccb.com 能盖上所有子域。
  * 建行 App 可能还用别的域名（统计、CDN），那些也能抓到，会一起列出来。
