@@ -27,12 +27,15 @@ jsDelivr 有 CDN 缓存，刚 push 完 `@main` 可能要几分钟才更新。想
 qx-scripts/
 ├── scripts/                        ← QX 直接拉这些
 │   ├── ccb-life-checkin.js         建行生活每日签到（抓包 + 重放双模式）
+│   ├── ccb-dump-all.js             诊断用：全量抓取，不挑接口，回答「到底拦没拦住」
 │   ├── ccb-life-capture.js         抓包器（其实已合并进上面，可单独用）
 │   └── probe.js                    探针：一次性探测 QX 未文档化的运行时行为
 ├── config/
 │   └── ccb-life.ini                建行生活脚本的 QX 配置片段
 ├── tools/
-│   └── ccb-life-test-harness.js    Node 离线测试台（不用真机就能验证逻辑）
+│   ├── ccb-life-test-harness.js    Node 离线测试台（不用真机就能验证逻辑）
+│   ├── ccb-dump-test.js            ccb-dump-all.js 的 23 项离线测试
+│   └── push-to-github.js           用 Contents API 往本仓库推文件
 ├── manuals/                        Quantumult X 开发手册（5 篇）
 │   ├── 01-配置文件结构.md
 │   ├── 02-JS-API参考.md
@@ -101,7 +104,44 @@ jsDelivr 有缓存，`@main` 可能要等几分钟才更新。想立刻生效就
 
 ---
 
-### 2. probe.js — QX 运行时探针
+### 2. ccb-dump-all.js — 抓不到包的时候先用这个
+
+`ccb-life-checkin.js` 的抓包模式只认 `txCtrl` 路径、只认有 body 的 POST。
+如果它一点动静都没有，你无法判断是 **MitM 没通** 还是 **路径猜错了**。这个脚本不挑路径不挑 body，全抓。
+
+它回答三个问题：
+
+1. **MitM 到底通不通** —— 有记录就是通，没记录就是证书/隧道的问题
+2. **签到走的是哪个 txcode** —— 逛一圈 App，看哪些接口被记下来了
+3. **签名是不是每次都变** —— 同一个接口出现两次时，脚本会对比 body 和 sign
+   - `body 完全相同` → 快照重放稳
+   - `签名也不同 ← 每次都变` → 重放可能被验签拒绝，得有心理准备
+
+```ini
+[rewrite_local]
+^https?:\/\/.+\.ccb\.com\/ url script-request-body https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js
+
+[task_local]
+event-interaction https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js, tag=建行dump, enabled=true
+
+[mitm]
+hostname = %APPEND% *.ccb.com, *.ccb.com.cn
+```
+
+用法：配好 → 打开建行生活逛到签到页（能点就点一次，点不了也没关系）→ `QX → 风车 → 事件 → 建行dump` → 看通知。
+
+- 逛的时候每见到**新的** txcode 弹一条通知，所以你知道自己走到哪一步了
+- 最后那段「导出」是全部记录，按接口分组，每条带次数、签名、body 前 260 字
+- 最多存 40 条，超出丢最老的
+- 噪音路径（`/log` `/report` `/track` `/stat` 和图片样式）会记录但标记 `[噪音]`，不弹通知
+
+诊断完把这一段从配置里删掉，换回 `ccb-life-checkin.js` 那一段，否则每次开 App 都弹。
+
+⚠️ 注意：`[rewrite_local]` 里只留**一个**脚本指向同一个域名。QX 对同一 URL 只执行其中一条（issue #124 的实证），两个抓包脚本同时开着会互相顶掉。
+
+---
+
+### 3. probe.js — QX 运行时探针
 
 官方没有 API 文档。这个脚本一次跑完，把 12 项「文档里没写、但会直接影响你写脚本」的行为测出来：
 
@@ -155,14 +195,22 @@ QX 里 `typeof $notification === "undefined"`，用错了不会报错，只是**
 不用真机也能验证脚本逻辑：
 
 ```bash
-cd tools && node ccb-life-test-harness.js
+cd tools
+node ccb-life-test-harness.js   # 签到主脚本，14 用例
+node ccb-dump-test.js            # 全量抓取诊断器，23 用例
 ```
 
 用 Node 的 `vm` 造一个 QX 语义的沙箱（`$prefs` / `$notify` / `$task.fetch` 10 秒硬超时 / `$done` 单次），
-跑 14 个用例：抓包 3 项、无快照、签到成功、今日已签、401、500、非 JSON、业务码失败、
-`code=0` 但 `success=false`、当日幂等、有登录快照先刷新、超时兜底。
+直接加载脚本跑。
 
-当前结果：**14 / 14 通过**。
+`ccb-life-test-harness.js` 的 14 个用例：抓包 3 项、无快照、签到成功、今日已签、401、500、非 JSON、
+业务码失败、`code=0` 但 `success=false`、当日幂等、有登录快照先刷新、超时兜底。
+
+`ccb-dump-test.js` 的 23 个用例：抓包存入、txcode 提取、签名提取、首见弹通知、同 txcode 第二次不弹、
+噪音标记、空 body GET、上限 40 条丢最老、无数据提示、签名每次都变的判定、body 完全相同判定、
+长内容分块（每条 ≤650 字符）、`$done` 恰好一次。
+
+当前结果：**14 / 14** 与 **23 / 23** 全通过。
 
 ---
 
@@ -170,6 +218,7 @@ cd tools && node ccb-life-test-harness.js
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
+| 2026-11-09 | v3.1 | 新增 `ccb-dump-all.js`（全量抓取诊断器，23 项离线测试全过）+ `tools/ccb-dump-test.js`；`config/ccb-life.ini` 加第 0 段诊断配置。动机：手动签到已经点过了，`ccb-life-checkin.js` 的抓包模式抓不到东西，需要先判断是 MitM 不通还是路径猜错。 |
 | 2026-11-09 | v3 | 重写建行生活签到。修了 v2 的致命问题（`$notification.post` 不是 QX API，通知全不弹）、无效的 `timeout: 15000`、ES6 语法；新增当日幂等、快照年龄判断、会话失效与网络失败分开报。14 项离线用例全过。 |
 | 2026-11-08 | — | 手册初版 + 通用签到示例 |
 
@@ -178,6 +227,8 @@ cd tools && node ccb-life-test-harness.js
 ## 已知待办
 
 - [ ] `probe.js` 的 12 项结果需要真机跑一次回填到手册 05 文档
+- [ ] `ccb-dump-all.js` 的真机结果，用来决定签到走「快照重放」还是另找路子
+- [ ] 拿到建行真实返回后收窄 `judge()` 的 `okCodes`
 - [ ] issue #44（`$done({status})` 改状态码无效）官方未回应
 - [ ] issue #135（多个 `Set-Cookie` 被合并成逗号串）官方未回应
 - [ ] `[task_local]` 6 段 cron 的每段含义官方没写明，待实测
