@@ -119,7 +119,7 @@ jsDelivr 有缓存，`@main` 可能要等几分钟才更新。想立刻生效就
 
 ```ini
 [rewrite_local]
-^https?:\/\/.+\.ccb\.com\/ url script-request-body https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js
+^https?:\/\/.+\.ccb\.com(\.cn)?\/ url script-request-body https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js
 
 [task_local]
 event-interaction https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js, tag=建行dump, enabled=true
