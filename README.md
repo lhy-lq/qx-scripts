@@ -5,6 +5,20 @@ Quantumult X 自用脚本集合。全部脚本只用 QX 原生 API，纯 ES5，�
 所有结论来自 `crossutility/Quantumult-X` 官方仓库的实际源码与 `sample.conf` 注释，
 不参考网上那些混用 Surge API 的「教程」。
 
+## 在 QX 里直接引用
+
+镜像已实测可通（2026-11-09）：
+
+```
+https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js
+https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/probe.js
+```
+
+`cdn.jsdelivr.net` 会 301 跳到被墙的 `raw.githubusercontent.com`，**不要用**。
+gcore 不通时的备选：`https://ghproxy.net/https://raw.githubusercontent.com/lhy-lq/qx-scripts/main/scripts/...`
+
+jsDelivr 有 CDN 缓存，刚 push 完 `@main` 可能要几分钟才更新。想立刻生效，把 `@main` 换成 commit 短 hash。
+
 ---
 
 ## 目录
