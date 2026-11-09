@@ -76,13 +76,13 @@ qx-scripts/
 
 ```ini
 [rewrite_local]
-^https?:\/\/yunbusiness\.ccb\.com\/ url script-request-body https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js
+^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js
 
 [task_local]
 17 7 * * * https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js, tag=建行生活, enabled=true
 
 [mitm]
-hostname = yunbusiness.ccb.com
+hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
 ```
 
 `[mitm]` 必须开，且证书要装 + 信任（设置 → 通用 → 关于本机 → 证书信任设置）。
@@ -119,13 +119,13 @@ jsDelivr 有缓存，`@main` 可能要等几分钟才更新。想立刻生效就
 
 ```ini
 [rewrite_local]
-^https?:\/\/.+\.ccb\.com(\.cn)?\/ url script-request-body https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js
+^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js
 
 [task_local]
 event-interaction https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js, tag=建行dump, enabled=true
 
 [mitm]
-hostname = %APPEND% *.ccb.com, *.ccb.com.cn
+hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
 ```
 
 用法：配好 → 打开建行生活逛到签到页（能点就点一次，点不了也没关系）→ `QX → 风车 → 事件 → 建行dump` → 看通知。
