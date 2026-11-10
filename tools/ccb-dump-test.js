@@ -198,6 +198,78 @@ function check(name, cond, detail) {
   check("rewrite done 恰好 1 次", r.doneCount === 1, r.doneCount);
 }
 
+// --- 11. 没有 txcode 的接口也要弹通知（这是以前「什么都抓不到」的主因）---
+{
+  const r = run({
+    request: {
+      url: "https://xc.ccblife.ccb.com/p1ccbl/service/checkin/do",
+      method: "POST",
+      body: '{"activityId":"SIGN"}'
+    }
+  });
+  check("无 txcode 也弹通知", r.notifies.length === 1, r.notifies.length);
+  check("无 txcode 通知标题带方法+路径",
+    r.notifies[0] && r.notifies[0].s.indexOf("POST xc.ccblife.ccb.com/p1ccbl/service/checkin/do") >= 0,
+    r.notifies[0] && r.notifies[0].s);
+  check("无 txcode 也记录到库里", (r.store.CCB_DUMP_V1 || "").indexOf("checkin/do") >= 0,
+    r.store.CCB_DUMP_V1);
+}
+
+// --- 11b. 同一无 txcode 接口第二次不重复弹 ---
+{
+  const seed = {};
+  const req = { url: "https://xc.ccblife.ccb.com/p1ccbl/service/checkin/do", method: "POST", body: "{}" };
+  const r1 = run({ request: req });
+  const r2 = run({ request: req, seed: r1.store });
+  check("无 txcode 首次弹 1 条", r1.notifies.length === 1, r1.notifies.length);
+  check("无 txcode 第二次不弹", r2.notifies.length === 0, r2.notifies.length);
+  check("无 txcode 第二次仍记录", (r2.store.CCB_DUMP_V1 || "").split("checkin/do").length - 1 === 2,
+    r2.store.CCB_DUMP_V1);
+}
+
+// --- 12. header 模式：$request.body 为 undefined 时不报错、标记 hd=1 ---
+{
+  const r = run({
+    request: {
+      url: "https://xc.ccblife.ccb.com/p1ccbl/service/getUserInfo",
+      method: "GET"
+      // 故意不给 body 字段，模拟 script-request-header
+    }
+  });
+  check("header 模式不抛错", !r.err, r.err);
+  check("header 模式也弹通知", r.notifies.length === 1, r.notifies.length);
+  check("header 模式通知里写明不提供 body",
+    r.notifies[0] && r.notifies[0].m.indexOf("header 模式") >= 0,
+    r.notifies[0] && r.notifies[0].m);
+  const arr = JSON.parse(r.store.CCB_DUMP_V1 || "[]");
+  check("header 模式记录 hd=1", arr[0] && arr[0].hd === 1, arr[0] && arr[0].hd);
+  check("header 模式 done 调用 1 次", r.doneCount === 1, r.doneCount);
+}
+
+// --- 13. body 模式：给了空串 body 时 hd=0 ---
+{
+  const r = run({
+    request: { url: "https://xc.ccblife.ccb.com/p1ccbl/service/x", method: "POST", body: "" }
+  });
+  const arr = JSON.parse(r.store.CCB_DUMP_V1 || "[]");
+  check("body 模式 hd=0", arr[0] && arr[0].hd === 0, arr[0] && arr[0].hd);
+}
+
+// --- 14. task 模式导出：header 模式条目带 [header模式] 标记 ---
+{
+  const seed = {
+    CCB_DUMP_V1: JSON.stringify([
+      { u: "xc.ccblife.ccb.com/p1ccbl/service/a", tx: "", m: "GET", b: "", hd: 1, t: 1, n: 0 },
+      { u: "xc.ccblife.ccb.com/p1ccbl/service/b", tx: "T1", m: "POST", b: "{}", hd: 0, t: 2, n: 0 }
+    ])
+  };
+  const r = run({ seed });
+  const all = r.notifies.map(x => x.m).join("\n");
+  check("导出含 header模式 标记", all.indexOf("[header模式]") >= 0, all.slice(0, 200));
+  check("导出含 GET 无 txcode 接口", all.indexOf("GET xc.ccblife.ccb.com/p1ccbl/service/a") >= 0, all.slice(0, 200));
+  check("导出含 txcode 接口", all.indexOf("T1") >= 0, all.slice(0, 200));
+}
+
 // ============ 输出 ============
 
 let pass = 0, fail = 0;
