@@ -3,7 +3,8 @@
  * 适用：iOS Quantumult X
  *
  * ===================== 为什么是「重放」不是「构造」 =====================
- * 建行生活走 yunbusiness.ccb.com 的 txCtrl 网关，请求里带 sign / 设备指纹，
+ * 建行生活走 xc.ccblife.ccb.com 的 txCtrl 网关（旧版是 yunbusiness.ccb.com），
+ * 请求里带 sign / 设备指纹，
  * 每次都不一样，算法在 App 里。自己构造请求等于逆向银行风控，不现实。
  *
  * 正确做法：你在 App 里手动签一次，脚本把那条「已经签好名」的请求原样存下来，
@@ -28,13 +29,13 @@
  *
  * ===================== QX 配置 =====================
  * [rewrite_local]
- * ^https?:\/\/yunbusiness\.ccb\.com\/ url script-request-body https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js
+ * ^https?:\\/\\/([^\\/]+\\.)?ccb\\.com(\\.cn)?/\\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js
  *
  * [task_local]
- * 17 7 * * * https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js, tag=建行生活, enabled=true
+ * 17 7 * * * https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js, tag=建行生活, enabled=true
  *
  * [mitm]
- * hostname = yunbusiness.ccb.com
+ * hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
  *
  * 注：GitHub raw 国内常被墙，QX 直接拉会失败，所以上面用 jsDelivr 镜像。
  *     若 jsDelivr 也不通，改用 ghproxy.net 前缀。
