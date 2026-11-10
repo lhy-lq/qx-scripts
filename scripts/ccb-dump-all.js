@@ -41,7 +41,7 @@
 // ===================== 配置 =====================
 
 var DUMP_KEY = "CCB_DUMP_V1";
-var MAX_RECORDS = 40;      // 最多存多少条，超了丢最老的
+var MAX_RECORDS = 120;     // 最多存多少条，超了丢最老的（原 40，抓签到页容易滚掉关键请求）
 var BODY_PREVIEW = 260;    // 每条 body 预览多少字符
 var CHUNK = 620;           // 每条通知装多少字符
 
@@ -52,7 +52,7 @@ var TITLE = "建行Dump";
 
 // ===================== 基础设施 =====================
 
-var TITLE_SEEN = "CCB_DUMP_SEEN";   // 已见过的 txcode 列表（避免通知刷屏）
+var TITLE_SEEN = "CCB_DUMP_SEEN2";  // 已见过的 txcode 列表（避免通知刷屏）。v2 换过 key，升级后重弹一遍
 
 function prefGet(k) {
   try { return $prefs.valueForKey(k); } catch (e) { return null; }
@@ -132,10 +132,15 @@ function onRequest() {
         while (seen.length > 60) seen.shift();
         prefSet(TITLE_SEEN, JSON.stringify(seen));
 
+        // 短 body 直接把内容给出来 —— 光看字节数判断不出这是不是签到接口
+        var peek = body.replace(/\s+/g, " ");
+        if (peek.length > 150) peek = peek.slice(0, 150) + "…";
+
         try {
-          $notify(TITLE, "新接口 " + tx,
+          $notify(TITLE, "新接口 " + tx + "  累计 " + list.length + " 条",
             shortUrl(url) + "\n" +
             "body " + body.length + " 字节" +
+            (body ? "\n" + peek : "  (空)") +
             (rec.sig ? "\n签名: " + rec.sig : "")
           );
         } catch (e) {}
