@@ -109,13 +109,40 @@ function check(name, cond, detail) {
 // --- 5. 超过 MAX_RECORDS 丢最老的 ---
 {
   let seed = {};
-  for (let i = 0; i < 45; i++) {
+  for (let i = 0; i < 125; i++) {
     const r = run({ seed, request: { url: "https://yunbusiness.ccb.com/a/txCtrl?txcode=T" + i, method: "POST", body: '{"i":' + i + '}' } });
     seed = r.store;
   }
   const arr = JSON.parse(seed["CCB_DUMP_V1"]);
-  check("上限 40 条生效", arr.length === 40, arr.length);
+  check("上限 120 条生效", arr.length === 120, arr.length);
   check("丢的是最老的", arr[0].tx === "T5", arr[0].tx);
+  check("保留的是最新的", arr[arr.length - 1].tx === "T124", arr[arr.length - 1].tx);
+}
+
+// --- 5b. 首见通知里要能看到短 body 的实际内容 ---
+{
+  const r = run({
+    request: {
+      url: "https://xc.ccblife.ccb.com/p1ccbl/service/common-service/txCtrl?txcode=SIGN001",
+      method: "POST",
+      body: '{"txcode":"SIGN001"}'
+    }
+  });
+  check("首见弹 1 条", r.notifies.length === 1, r.notifies.length);
+  const m = r.notifies[0] ? r.notifies[0].m : "";
+  check("通知带 body 内容", m.indexOf("SIGN001") >= 0, m.slice(0, 80));
+  check("通知带累计条数", /累计 1 条/.test(r.notifies[0] ? r.notifies[0].s : ""), r.notifies[0] && r.notifies[0].s);
+}
+
+// --- 5c. 长 body 截到 150 字符 ---
+{
+  const big = "A".repeat(400);
+  const r = run({
+    request: { url: "https://a.ccb.com/x/txCtrl?txcode=BIG1", method: "POST", body: big }
+  });
+  const m = r.notifies[0] ? r.notifies[0].m : "";
+  check("长 body 被截断带省略号", m.indexOf("…") >= 0, m.slice(-40));
+  check("通知整体不过长", m.length < 400, m.length);
 }
 
 // --- 6. task 模式：无数据时的提示 ---
