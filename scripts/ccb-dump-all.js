@@ -70,6 +70,8 @@ var DUMP_KEY = "CCB_DUMP_V1";
 var MAX_RECORDS = 120;     // 最多存多少条，超了丢最老的（原 40，抓签到页容易滚掉关键请求）
 var BODY_PREVIEW = 260;    // 每条 body 预览多少字符
 var CHUNK = 620;           // 每条通知装多少字符
+var HEADER_CAP = 700;      // 一条请求最多记多少字符的 header
+var HEADER_VAL = 150;      // 单个 header 值超过这么长就截断
 
 // 明显是噪音的请求，抓但标记出来（不参与 sign 对比）
 var NOISE = ["\/log", "\/report", "\/track", "\/stat", ".png", ".jpg", ".css", ".js", "favicon"];
@@ -78,7 +80,7 @@ var TITLE = "建行Dump";
 
 // ===================== 基础设施 =====================
 
-var TITLE_SEEN = "CCB_DUMP_SEEN3";  // 已见过的 txcode 列表（避免通知刷屏）。v2 换过 key，升级后重弹一遍
+var TITLE_SEEN = "CCB_DUMP_SEEN4";  // 已见过的 txcode 列表（避免通知刷屏）。v2 换过 key，升级后重弹一遍
 
 function prefGet(k) {
   try { return $prefs.valueForKey(k); } catch (e) { return null; }
@@ -118,6 +120,46 @@ function keyOf(url, method, tx) {
   return tx ? tx : (String(method || "?") + " " + shortUrl(url));
 }
 
+// 请求头里最可能藏签名/会话的几个关键词。
+// header 模式下拿不到 body，所以 headers 是唯一线索 —— 网关的鉴权信息
+// （cookie / token / sign / tranCode）基本都在这里。
+// 只放「可能藏签名/会话」的头。UA / Content-Type / Referer 这类每台设备都一样，
+// 不参与排序，否则关键项会被它们挤到后面。
+var WANT_HEADERS = [
+  "cookie", "authorization", "token", "sign", "signature", "timestamp",
+  "nonce", "txcode", "trancode", "transcode", "session", "auth"
+];
+
+// $request.headers 的 key 大小写不固定，不能用 headers["Cookie"] 直接取。
+function pickHeaders(headers) {
+  if (!headers) return "";
+  var want = [], other = [], i, k, v, lk, isWant;
+  for (k in headers) {
+    if (!Object.prototype.hasOwnProperty.call(headers, k)) continue;
+    v = headers[k];
+    if (v === undefined || v === null) continue;
+    v = String(v).replace(/\s+/g, " ");
+    if (v.length > HEADER_VAL) v = v.slice(0, HEADER_VAL) + "…";
+    lk = k.toLowerCase();
+    isWant = false;
+    for (i = 0; i < WANT_HEADERS.length; i++) {
+      if (lk.indexOf(WANT_HEADERS[i]) >= 0) { isWant = true; break; }
+    }
+    (isWant ? want : other).push(k + ": " + v);
+  }
+  var out = want.concat(other).join(" | ");
+  if (out.length > HEADER_CAP) out = out.slice(0, HEADER_CAP) + "…";
+  return out;
+}
+
+// URL 上的 query。TXCtrl 这类网关把 txcode 放在 query 里，别丢了
+function queryOf(url) {
+  var t = String(url), q = t.indexOf("?");
+  if (q < 0) return "";
+  var qs = t.slice(q + 1);
+  return qs.length > 300 ? qs.slice(0, 300) + "…" : qs;
+}
+
 // ===================== 入口分流 =====================
 
 var isRewrite = (typeof $request !== "undefined") && $request && !!$request.url;
@@ -144,25 +186,29 @@ function onRequest() {
     var list = loadList();
     var tx = txcodeOf(url);
     var noise = isNoise(url);
+    // header 模式拿不到 body，那 headers 就是唯一线索，必须记
+    var hs = pickHeaders($request.headers);
 
     var rec = {
       u: shortUrl(url),
+      qs: queryOf(url),
       tx: tx,
       m: method,
       b: body,
+      hs: hs,
       hd: headerMode ? 1 : 0,
       t: (new Date()).getTime(),
       n: noise ? 1 : 0
     };
 
-    // sign / timestamp 这类字段单独拎出来，方便肉眼比对
-    rec.sig = pickSig(body);
+    // sign / timestamp 这类字段单独拎出来，方便肉眼比对。
+    // body 是 JSON、headers 是 k: v，两种格式一起扫。
+    rec.sig = pickSig(body, hs);
 
     list.push(rec);
     while (list.length > MAX_RECORDS) list.shift();
     prefSet(DUMP_KEY, JSON.stringify(list));
 
-    // 只在见到新 txcode 时才弹通知，避免逛一圈弹 30 条
     // 每个「新接口」弹一条通知。判定用 keyOf()，没有 txcode 的接口同样会弹。
     var k = keyOf(url, method, tx);
     if (!noise) {
@@ -172,16 +218,18 @@ function onRequest() {
         while (seen.length > 80) seen.shift();
         prefSet(TITLE_SEEN, JSON.stringify(seen));
 
-        // 短 body 直接把内容给出来 —— 光看字节数判断不出这是不是签到接口
+        // 光看字节数判断不出这是不是要的那个接口，直接把内容给出来
         var peek = body.replace(/\s+/g, " ");
         if (peek.length > 150) peek = peek.slice(0, 150) + "…";
+        var peekHs = hs.length > 220 ? hs.slice(0, 220) + "…" : hs;
 
         try {
           $notify(TITLE, "新接口 " + k + "  累计 " + list.length + " 条",
             "[" + method + "] " + shortUrl(url) + "\n" +
             (headerMode
-               ? "header 模式（这个类型不提供 body）"
+               ? "header 模式（本类型没有 body）"
                : "body " + body.length + " 字节" + (body ? "\n" + peek : "  (空)")) +
+            (peekHs ? "\n头部: " + peekHs : "") +
             (rec.sig ? "\n签名: " + rec.sig : "")
           );
         } catch (e) {}
@@ -194,14 +242,31 @@ function onRequest() {
 }
 
 // 从 body 里挑出签名类字段（只看顶层，正则够了）
-function pickSig(body) {
-  if (!body) return "";
-  var m = String(body).match(/"(sign|signature|signStr|token|timestamp|timeStamp|ts|nonce|reqTime)"\s*:\s*"([^"]{1,40})"/gi);
-  if (!m) return "";
+function pickSig(body, headers) {
   var out = [];
-  for (var i = 0; i < m.length && i < 4; i++) {
-    out.push(m[i].replace(/\s+/g, ""));
+  var i, m, seg, one;
+
+  // body 是 JSON：找 "sign":"xxx" 这种
+  if (body) {
+    m = String(body).match(/"(sign|signature|signStr|token|timestamp|timeStamp|ts|nonce|reqTime)"\s*:\s*"([^"]{1,60})"/gi);
+    if (m) {
+      for (i = 0; i < m.length && out.length < 4; i++) {
+        out.push(m[i].replace(/\s+/g, ""));
+      }
+    }
   }
+
+  // headers 是 "k: v | k: v"：找 key 里带 sign/token/tranCode 的
+  if (headers && out.length < 6) {
+    seg = String(headers).split("|");
+    for (i = 0; i < seg.length && out.length < 6; i++) {
+      one = seg[i].replace(/^\s+|\s+$/g, "");
+      if (/^(sign|signature|signstr|token|authorization|timestamp|nonce|trancode|transcode)/i.test(one)) {
+        out.push(one);
+      }
+    }
+  }
+
   return out.join(" ");
 }
 
@@ -265,6 +330,11 @@ function onDump() {
                  (sigSame ? "签名相同、body 不同" : "签名也不同 ← 每次都变")));
     }
 
+    if (first.qs) lines.push("   query: " + first.qs);
+    if (first.hs) {
+      var hsPrev = first.hs.length > BODY_PREVIEW ? first.hs.slice(0, BODY_PREVIEW) + "…" : first.hs;
+      lines.push("   头部: " + hsPrev);
+    }
     if (first.sig) lines.push("   签名: " + first.sig);
     if (first.b) {
       var preview = first.b.replace(/\s+/g, " ").slice(0, BODY_PREVIEW);
