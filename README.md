@@ -10,8 +10,8 @@ Quantumult X 自用脚本集合。全部脚本只用 QX 原生 API，纯 ES5，�
 镜像已实测可通（2026-11-09）：
 
 ```
-https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js
-https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/probe.js
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/probe.js
 ```
 
 `cdn.jsdelivr.net` 会 301 跳到被墙的 `raw.githubusercontent.com`，**不要用**。
@@ -54,7 +54,7 @@ qx-scripts/
 
 **为什么是「重放」而不是「构造请求」**
 
-建行生活走 `yunbusiness.ccb.com` 的 `txCtrl?txcode=` 网关，请求头里带 `sign` 和设备指纹，
+建行生活走 `xc.ccblife.ccb.com` 的 `txCtrl?txcode=` 网关，请求头里带 `sign` 和设备指纹，
 每次都不一样，签名算法在 App 二进制里。自己构造请求等于逆向银行风控 —— 不做。
 
 做法是：**你在 App 里手动签一次，脚本把那条已经签好名的请求原样存下来，之后每天重放一次。**
@@ -76,10 +76,10 @@ qx-scripts/
 
 ```ini
 [rewrite_local]
-^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js
+^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js
 
 [task_local]
-17 7 * * * https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js, tag=建行生活, enabled=true
+17 7 * * * https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js, tag=建行生活, enabled=true
 
 [mitm]
 hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
@@ -97,7 +97,7 @@ hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
 6. 收到「✅ 签到成功」就说明整条链路通了
 
 **注意**：GitHub raw 国内经常连不上，QX 直接拉会失败，所以配置里用的是 jsDelivr 的 gcore 节点
-`gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/...`（实测 200；`cdn.jsdelivr.net` 会 301 跳到被墙的 raw，别用）。
+`fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/...`（实测 200；`cdn.jsdelivr.net` 会 301 跳到被墙的 raw，别用）。
 gcore 也不通的话换成 `ghproxy.net/https://raw.githubusercontent.com/lhy-lq/qx-scripts/main/...`。
 
 jsDelivr 有缓存，`@main` 可能要等几分钟才更新。想立刻生效就把 `@main` 换成具体 commit 短 hash。
@@ -119,10 +119,10 @@ jsDelivr 有缓存，`@main` 可能要等几分钟才更新。想立刻生效就
 
 ```ini
 [rewrite_local]
-^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js
+^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js
 
 [task_local]
-event-interaction https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js, tag=建行dump, enabled=true
+event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js, tag=建行dump, enabled=true
 
 [mitm]
 hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
@@ -156,7 +156,7 @@ hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
 
 ```ini
 [task_local]
-event-interaction https://gcore.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/probe.js, tag=QX探针, enabled=true
+event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/probe.js, tag=QX探针, enabled=true
 ```
 
 触发：`QX → 首页 → 风车 → 事件 → QX探针`。**必须 QX 隧道在跑**，否则 `event-*` 任务不触发（官方 `sample.conf:336` 写明了）。
