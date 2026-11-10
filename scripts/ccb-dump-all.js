@@ -36,6 +36,23 @@
  *
  * 想重新开始抓：QX → 设置 → 通用 → 清除全部本地存储（会清掉签到快照，
  * 但你现在还没快照，无所谓）。或者改下面的 DUMP_KEY 名字。
+ *
+ * ===================== 实战记录 2026-11-10 =====================
+ * 已确认：
+ *   · MitM 通了。真实接口域名是 xc.ccblife.ccb.com，不是 yunbusiness.ccb.com。
+ *   · 已抓到的一条：xc.ccblife.ccb.com/p1ccbl/service/common-service/txCtrl
+ *     body 仅 11 字节 —— 通用网关的公共调用，不是签到那一条。
+ *
+ * 两个必须知道的坑：
+ *   坑1 镜像缓存。gcore.jsdelivr.net 实测会返回几分钟前的旧文件（我这边拿到
+ *       8990 字节旧版，实际已是 9382 字节新版），所以你手机上可能一直跑旧代码。
+ *       改用 fastly.jsdelivr.net 或 testingcf.jsdelivr.net；最稳是把 @main 换成
+ *       具体 commit 短 hash，那是不变的。
+ *   坑2 空 body 不触发。官方 sample.conf 原话：
+ *       "The body related rewrite will not be executed if the body is empty."
+ *       script-request-body 只对「有 body 的请求」生效，纯 GET 根本抓不到。
+ *       要看全部接口：先把类型临时换成 script-request-header 抓一轮（只有 URL），
+ *       再换回 script-request-body 抓一轮（拿 body）。分两轮。
  */
 
 // ===================== 配置 =====================
@@ -211,7 +228,7 @@ function onDump() {
     var arr = byTx[key2];
     var first = arr[0];
 
-    lines.push("── " + (first.tx ? "txcode=" + first.tx : first.u) + "  ×" + arr.length +
+    lines.push("── [" + (first.m || "?") + "] " + (first.tx ? "txcode=" + first.tx : first.u) + "  ×" + arr.length +
                (first.n ? " [噪音]" : ""));
 
     if (arr.length >= 2) {
