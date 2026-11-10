@@ -339,6 +339,9 @@ function onDump() {
     if (first.b) {
       var preview = first.b.replace(/\s+/g, " ").slice(0, BODY_PREVIEW);
       lines.push("   body: " + preview + (first.b.length > BODY_PREVIEW ? "…" : ""));
+    } else if (first.hd) {
+      // header 模式下 body 是这个类型「不给」，不是真的空 —— 别让人误会
+      lines.push("   body: 这个类型不提供（第二轮换 script-request-body 再看）");
     } else {
       lines.push("   body: (空)");
     }
