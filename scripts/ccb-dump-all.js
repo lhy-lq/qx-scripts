@@ -48,6 +48,15 @@
  *       8990 字节旧版，实际已是 9382 字节新版），所以你手机上可能一直跑旧代码。
  *       改用 fastly.jsdelivr.net 或 testingcf.jsdelivr.net；最稳是把 @main 换成
  *       具体 commit 短 hash，那是不变的。
+ * ===================== v4 变更（2026-11-10 晚） =====================
+ * 之前只认 txcode：没有 txcode 的接口（例如 /xxx/checkin、/xxx/getUserInfo）
+ * 抓到了却一条通知都不弹，看起来就像「什么都没抓到」。v4 修掉了：
+ *   · 新增 keyOf(url, method, tx)：有 txcode 用 txcode，没有就用「方法 + host/path」。
+ *   · 通知条件从 `if (!noise && tx)` 改成 `if (!noise)`，无 txcode 也弹。
+ *   · 用 $request.body === undefined 判断当前是 script-request-header 模式，
+ *     通知里会写「header 模式（这个类型不提供 body）」，导出时条目带 [header模式]。
+ *   · TITLE_SEEN 换成 CCB_DUMP_SEEN3，升级后所有接口会重新弹一遍。
+
  *   坑2 空 body 不触发。官方 sample.conf 原话：
  *       "The body related rewrite will not be executed if the body is empty."
  *       script-request-body 只对「有 body 的请求」生效，纯 GET 根本抓不到。
@@ -69,7 +78,7 @@ var TITLE = "建行Dump";
 
 // ===================== 基础设施 =====================
 
-var TITLE_SEEN = "CCB_DUMP_SEEN2";  // 已见过的 txcode 列表（避免通知刷屏）。v2 换过 key，升级后重弹一遍
+var TITLE_SEEN = "CCB_DUMP_SEEN3";  // 已见过的 txcode 列表（避免通知刷屏）。v2 换过 key，升级后重弹一遍
 
 function prefGet(k) {
   try { return $prefs.valueForKey(k); } catch (e) { return null; }
@@ -102,6 +111,13 @@ function shortUrl(url) {
   return q >= 0 ? s.slice(0, q) : s;
 }
 
+// 一个接口的稳定标识。有 txcode 用 txcode；没有就用「方法 + host/path」。
+// 关键：以前只认 txcode，导致没有 txcode 的接口（例如 /xxx/checkin）一条通知都不弹，
+// 明明抓到了却看不见 —— 这是「好像什么都抓不到」最常见的假象。
+function keyOf(url, method, tx) {
+  return tx ? tx : (String(method || "?") + " " + shortUrl(url));
+}
+
 // ===================== 入口分流 =====================
 
 var isRewrite = (typeof $request !== "undefined") && $request && !!$request.url;
@@ -118,7 +134,11 @@ function onRequest() {
   // rewrite 里必须带参数 $done，{} = 原样放行，否则请求被吞
   try {
     var url = String($request.url || "");
-    var body = String($request.body || "");
+    // $request.body 在 script-request-header 模式下是 undefined；
+    // 在 script-request-body 模式下即使没内容也是空字符串。用这个区分两种模式。
+    var rawBody = $request.body;
+    var headerMode = (rawBody === undefined || rawBody === null);
+    var body = headerMode ? "" : String(rawBody);
     var method = String($request.method || "GET").toUpperCase();
 
     var list = loadList();
@@ -130,6 +150,7 @@ function onRequest() {
       tx: tx,
       m: method,
       b: body,
+      hd: headerMode ? 1 : 0,
       t: (new Date()).getTime(),
       n: noise ? 1 : 0
     };
@@ -142,11 +163,13 @@ function onRequest() {
     prefSet(DUMP_KEY, JSON.stringify(list));
 
     // 只在见到新 txcode 时才弹通知，避免逛一圈弹 30 条
-    if (!noise && tx) {
+    // 每个「新接口」弹一条通知。判定用 keyOf()，没有 txcode 的接口同样会弹。
+    var k = keyOf(url, method, tx);
+    if (!noise) {
       var seen = loadSeen();
-      if (seen.indexOf(tx) < 0) {
-        seen.push(tx);
-        while (seen.length > 60) seen.shift();
+      if (seen.indexOf(k) < 0) {
+        seen.push(k);
+        while (seen.length > 80) seen.shift();
         prefSet(TITLE_SEEN, JSON.stringify(seen));
 
         // 短 body 直接把内容给出来 —— 光看字节数判断不出这是不是签到接口
@@ -154,10 +177,11 @@ function onRequest() {
         if (peek.length > 150) peek = peek.slice(0, 150) + "…";
 
         try {
-          $notify(TITLE, "新接口 " + tx + "  累计 " + list.length + " 条",
-            shortUrl(url) + "\n" +
-            "body " + body.length + " 字节" +
-            (body ? "\n" + peek : "  (空)") +
+          $notify(TITLE, "新接口 " + k + "  累计 " + list.length + " 条",
+            "[" + method + "] " + shortUrl(url) + "\n" +
+            (headerMode
+               ? "header 模式（这个类型不提供 body）"
+               : "body " + body.length + " 字节" + (body ? "\n" + peek : "  (空)")) +
             (rec.sig ? "\n签名: " + rec.sig : "")
           );
         } catch (e) {}
@@ -215,7 +239,7 @@ function onDump() {
 
   for (var i = 0; i < list.length; i++) {
     var r = list[i];
-    var key = r.tx || (r.u + "|" + r.m);
+    var key = r.tx || (r.m + " " + r.u);
     if (!byTx[key]) { byTx[key] = []; txOrder.push(key); }
     byTx[key].push(r);
   }
@@ -228,8 +252,9 @@ function onDump() {
     var arr = byTx[key2];
     var first = arr[0];
 
-    lines.push("── [" + (first.m || "?") + "] " + (first.tx ? "txcode=" + first.tx : first.u) + "  ×" + arr.length +
-               (first.n ? " [噪音]" : ""));
+    lines.push("── " + key2 + "  ×" + arr.length +
+               (first.n ? " [噪音]" : "") +
+               (first.hd ? " [header模式]" : ""));
 
     if (arr.length >= 2) {
       // 同一个接口出现多次 —— 直接回答「sign 变不变」
