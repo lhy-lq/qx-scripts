@@ -10,14 +10,20 @@ Quantumult X 自用脚本集合。全部脚本只用 QX 原生 API，纯 ES5，�
 镜像已实测可通（2026-11-09）：
 
 ```
-https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js
-https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/probe.js
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-dump-all.js
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-life-checkin.js
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/probe.js
 ```
 
-`cdn.jsdelivr.net` 会 301 跳到被墙的 `raw.githubusercontent.com`，**不要用**。
-gcore 不通时的备选：`https://ghproxy.net/https://raw.githubusercontent.com/lhy-lq/qx-scripts/main/scripts/...`
+**为什么带一串 hash 而不是 `@main`**：`@main` 是分支引用，jsDelivr 的三个节点
+（fastly / testingcf / gcore）都带 CDN 缓存。2026-11-10 实测：改完脚本推上去之后，
+三个节点的 `@main` 全都还在返回旧文件（8990 字节 vs 实际 9382 字节），只有把 `@main`
+换成 commit hash 才拿到新版。所以手机上「改了没反应」很可能压根没跑到新代码。
 
-jsDelivr 有 CDN 缓存，刚 push 完 `@main` 可能要几分钟才更新。想立刻生效，把 `@main` 换成 commit 短 hash。
+`cdn.jsdelivr.net` 会 301 跳到被墙的 `raw.githubusercontent.com`，**不要用**。
+备选通道：`https://ghproxy.net/https://raw.githubusercontent.com/lhy-lq/qx-scripts/main/scripts/...`
+
+`@main` 什么时候能用：只在「这一版已经稳定、不急」的时候。要立刻生效一律用 hash。
 
 ---
 
@@ -76,10 +82,10 @@ qx-scripts/
 
 ```ini
 [rewrite_local]
-^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js
+^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-life-checkin.js
 
 [task_local]
-17 7 * * * https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-life-checkin.js, tag=建行生活, enabled=true
+17 7 * * * https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-life-checkin.js, tag=建行生活, enabled=true
 
 [mitm]
 hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
@@ -96,11 +102,18 @@ hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
 5. 收到后，到 `QX → 首页 → 风车图标 → 定时任务` 找到「建行生活」，点一次手动跑
 6. 收到「✅ 签到成功」就说明整条链路通了
 
-**注意**：GitHub raw 国内经常连不上，QX 直接拉会失败，所以配置里用的是 jsDelivr 的 gcore 节点
-`fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/...`（实测 200；`cdn.jsdelivr.net` 会 301 跳到被墙的 raw，别用）。
-gcore 也不通的话换成 `ghproxy.net/https://raw.githubusercontent.com/lhy-lq/qx-scripts/main/...`。
+**注意**：GitHub raw 国内经常连不上，QX 直接拉会失败，所以配置里用的是 jsDelivr 的 fastly 节点，
+并且带的是 commit hash 不是 `@main`：
 
-jsDelivr 有缓存，`@main` 可能要等几分钟才更新。想立刻生效就把 `@main` 换成具体 commit 短 hash。
+```
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-life-checkin.js
+```
+
+（`cdn.jsdelivr.net` 会 301 跳到被墙的 raw，别用。备选：
+`ghproxy.net/https://raw.githubusercontent.com/lhy-lq/qx-scripts/main/...`）
+
+为什么不写 `@main`：jsDelivr 三个节点都带 CDN 缓存，2026-11-10 实测改完推送后 `@main`
+仍返回旧文件，手机上就会一直跑旧代码。hash 地址是内容寻址的，永远对。
 
 ---
 
@@ -119,10 +132,10 @@ jsDelivr 有缓存，`@main` 可能要等几分钟才更新。想立刻生效就
 
 ```ini
 [rewrite_local]
-^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js
+^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-dump-all.js
 
 [task_local]
-event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/ccb-dump-all.js, tag=建行dump, enabled=true
+event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-dump-all.js, tag=建行dump, enabled=true
 
 [mitm]
 hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
@@ -130,9 +143,22 @@ hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
 
 用法：配好 → 打开建行生活逛到签到页（能点就点一次，点不了也没关系）→ `QX → 风车 → 事件 → 建行dump` → 看通知。
 
-- 逛的时候每见到**新的** txcode 弹一条通知，所以你知道自己走到哪一步了
-- 最后那段「导出」是全部记录，按接口分组，每条带次数、签名、body 前 260 字
-- 最多存 40 条，超出丢最老的
+**必须分两轮抓**（官方 `sample.conf` 原话：`The body related rewrite will not be executed
+if the body is empty.`）—— `script-request-body` 只对带 body 的请求生效，纯 GET 根本抓不到：
+
+| 轮次 | rewrite 类型 | 能看到 | 用途 |
+|---|---|---|---|
+| 第一轮 | `script-request-header` | 全部接口的 URL + method（通知里写「header 模式」） | 先确认签到接口在不在 |
+| 第二轮 | `script-request-body` | body 全文 + 签名 | 拿到能重放的报文 |
+
+两轮写进同一个库，第二轮不会冲掉第一轮。
+
+- 逛的时候每见到**新的**接口弹一条通知，所以你知道自己走到哪一步了
+- 判定用 `keyOf(url, method, tx)`：有 txcode 用 txcode，**没有 txcode 也能弹**
+  （v4 修的坑：以前只认 txcode，`/xxx/checkin` 这类接口抓到了却一条通知都不弹，
+  看起来就像「什么都没抓到」）
+- 最后那段「导出」是全部记录，按接口分组，每条带次数、签名、body 前 260 字、`[header模式]` 标记
+- 最多存 120 条，超出丢最老的
 - 噪音路径（`/log` `/report` `/track` `/stat` 和图片样式）会记录但标记 `[噪音]`，不弹通知
 
 诊断完把这一段从配置里删掉，换回 `ccb-life-checkin.js` 那一段，否则每次开 App 都弹。
@@ -156,7 +182,7 @@ hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
 
 ```ini
 [task_local]
-event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@main/scripts/probe.js, tag=QX探针, enabled=true
+event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/probe.js, tag=QX探针, enabled=true
 ```
 
 触发：`QX → 首页 → 风车 → 事件 → QX探针`。**必须 QX 隧道在跑**，否则 `event-*` 任务不触发（官方 `sample.conf:336` 写明了）。
@@ -218,6 +244,7 @@ node ccb-dump-test.js            # 全量抓取诊断器，23 用例
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
+| 2026-11-10 | v4 | `ccb-dump-all.js` 修「抓到了却看不到」：新增 `keyOf(url, method, tx)`，无 txcode 的接口也弹通知（原来条件 `if (!noise && tx)`）；用 `$request.body === undefined` 识别 `script-request-header` 模式，通知与导出都标注；`TITLE_SEEN` 换 `CCB_DUMP_SEEN3`；上限 40 → 120。测试 29 → 44 项全过。实测确认 jsDelivr `@main` 三节点全部返回旧文件，本文与 `config/ccb-life.ini` 的地址一律改为 commit hash。真实接口域名更正为 `xc.ccblife.ccb.com`。 |
 | 2026-11-09 | v3.1 | 新增 `ccb-dump-all.js`（全量抓取诊断器，23 项离线测试全过）+ `tools/ccb-dump-test.js`；`config/ccb-life.ini` 加第 0 段诊断配置。动机：手动签到已经点过了，`ccb-life-checkin.js` 的抓包模式抓不到东西，需要先判断是 MitM 不通还是路径猜错。 |
 | 2026-11-09 | v3 | 重写建行生活签到。修了 v2 的致命问题（`$notification.post` 不是 QX API，通知全不弹）、无效的 `timeout: 15000`、ES6 语法；新增当日幂等、快照年龄判断、会话失效与网络失败分开报。14 项离线用例全过。 |
 | 2026-11-08 | — | 手册初版 + 通用签到示例 |
@@ -228,6 +255,7 @@ node ccb-dump-test.js            # 全量抓取诊断器，23 用例
 
 - [ ] `probe.js` 的 12 项结果需要真机跑一次回填到手册 05 文档
 - [ ] `ccb-dump-all.js` 的真机结果，用来决定签到走「快照重放」还是另找路子
+- [ ] 第一轮 `script-request-header` 抓完，确认签到接口的 path 后再定 rewrite 正则
 - [ ] 拿到建行真实返回后收窄 `judge()` 的 `okCodes`
 - [ ] issue #44（`$done({status})` 改状态码无效）官方未回应
 - [ ] issue #135（多个 `Set-Cookie` 被合并成逗号串）官方未回应
