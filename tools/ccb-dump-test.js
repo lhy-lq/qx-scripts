@@ -270,6 +270,91 @@ function check(name, cond, detail) {
   check("导出含 txcode 接口", all.indexOf("T1") >= 0, all.slice(0, 200));
 }
 
+// --- 15. header 模式：headers 必须被记下来（签名常藏在 header 里）---
+{
+  const r = run({
+    request: {
+      url: "https://dvfp.ftss.ccb.com/CCDSG/TransactionRoute_1?txcode=CCB001",
+      method: "POST",
+      headers: {
+        "Cookie": "SESSION=abc123; token=zzz",
+        "tranCode": "A3341A038",
+        "X-Sign": "deadbeef",
+        "User-Agent": "ccb/6.0.0",
+        "Content-Type": "application/json"
+      }
+      // 故意不给 body 字段 = script-request-header 模式
+    }
+  });
+  const arr = JSON.parse(r.store.CCB_DUMP_V1 || "[]");
+  const rec = arr[0] || {};
+  check("header 模式 hd=1", rec.hd === 1, rec.hd);
+  check("header 模式记录了 headers", !!(rec.hs && rec.hs.length > 10), rec.hs);
+  check("headers 含 Cookie", String(rec.hs || "").indexOf("Cookie") >= 0, rec.hs);
+  check("headers 含 tranCode", String(rec.hs || "").toLowerCase().indexOf("trancode") >= 0, rec.hs);
+  check("记录了 query", String(rec.qs || "").indexOf("txcode=CCB001") >= 0, rec.qs);
+}
+
+// --- 16. header 模式：通知正文必须带「头部:」且不能是空的 ---
+{
+  const r = run({
+    request: {
+      url: "https://dvfp.ftss.ccb.com/CCDSG/TransactionRoute_1",
+      method: "POST",
+      headers: { "Cookie": "SID=xyz", "token": "tk-999" }
+    }
+  });
+  check("header 模式弹通知", r.notifies.length === 1, r.notifies.length);
+  const body = (r.notifies[0] || {}).m || "";
+  check("通知含 头部:", body.indexOf("头部:") >= 0, body);
+  check("通知含 Cookie 值", body.indexOf("SID=xyz") >= 0, body);
+  check("通知含 header 模式说明", body.indexOf("header 模式") >= 0, body);
+  check("通知不含 body 字节", body.indexOf("字节") < 0, body);
+}
+
+// --- 17. 头部关键值排前面（Cookie 应当在 User-Agent 之前）---
+{
+  const r = run({
+    request: {
+      url: "https://dvfp.ftss.ccb.com/x",
+      method: "POST",
+      headers: { "User-Agent": "ua-1", "Accept-Language": "zh", "Authorization": "Bearer abc" }
+    }
+  });
+  const arr = JSON.parse(r.store.CCB_DUMP_V1 || "[]");
+  const hs = String((arr[0] || {}).hs || "");
+  check("Authorization 排在 User-Agent 前",
+    hs.indexOf("Authorization") >= 0 && hs.indexOf("Authorization") < hs.indexOf("User-Agent"), hs);
+}
+
+// --- 18. 单个 header 超长要截断（不许把通知撑爆）---
+{
+  const big = "x".repeat(2000);
+  const r = run({
+    request: { url: "https://dvfp.ftss.ccb.com/y", method: "POST", headers: { "Cookie": big } }
+  });
+  const arr = JSON.parse(r.store.CCB_DUMP_V1 || "[]");
+  const hs = String((arr[0] || {}).hs || "");
+  check("超长 header 被截断", hs.length <= 720, hs.length);
+}
+
+// --- 19. 导出时能看到 query 与头部 ---
+{
+  const seed = {
+    CCB_DUMP_V1: JSON.stringify([{
+      u: "dvfp.ftss.ccb.com/CCDSG/TransactionRoute_1",
+      qs: "txcode=CCB001&v=2",
+      tx: "CCB001", m: "POST", b: "",
+      hs: "Cookie: SID=xyz | tranCode: A3341A038",
+      hd: 1, t: 1, n: 0
+    }])
+  };
+  const r = run({ seed });
+  const all = r.notifies.map(x => x.m).join("\n");
+  check("导出含 query 行", all.indexOf("query: txcode=CCB001") >= 0, all.slice(0, 400));
+  check("导出含 头部 行", all.indexOf("头部: Cookie: SID=xyz") >= 0, all.slice(0, 400));
+}
+
 // ============ 输出 ============
 
 let pass = 0, fail = 0;
