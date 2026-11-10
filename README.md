@@ -10,9 +10,9 @@ Quantumult X 自用脚本集合。全部脚本只用 QX 原生 API，纯 ES5，�
 镜像已实测可通（2026-11-09）：
 
 ```
-https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-dump-all.js
-https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-life-checkin.js
-https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/probe.js
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@757f858/scripts/ccb-dump-all.js
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@757f858/scripts/ccb-life-checkin.js
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@757f858/scripts/probe.js
 ```
 
 **为什么带一串 hash 而不是 `@main`**：`@main` 是分支引用，jsDelivr 的三个节点
@@ -82,10 +82,10 @@ qx-scripts/
 
 ```ini
 [rewrite_local]
-^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-life-checkin.js
+^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@757f858/scripts/ccb-life-checkin.js
 
 [task_local]
-17 7 * * * https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-life-checkin.js, tag=建行生活, enabled=true
+17 7 * * * https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@757f858/scripts/ccb-life-checkin.js, tag=建行生活, enabled=true
 
 [mitm]
 hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
@@ -106,7 +106,7 @@ hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
 并且带的是 commit hash 不是 `@main`：
 
 ```
-https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-life-checkin.js
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@757f858/scripts/ccb-life-checkin.js
 ```
 
 （`cdn.jsdelivr.net` 会 301 跳到被墙的 raw，别用。备选：
@@ -132,10 +132,10 @@ https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-life-checki
 
 ```ini
 [rewrite_local]
-^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-dump-all.js
+^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@757f858/scripts/ccb-dump-all.js
 
 [task_local]
-event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-dump-all.js, tag=建行dump, enabled=true
+event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@757f858/scripts/ccb-dump-all.js, tag=建行dump, enabled=true
 
 [mitm]
 hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
@@ -193,7 +193,7 @@ if the body is empty.`）—— `script-request-body` 只对带 body 的请求�
 
 ```ini
 [task_local]
-event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/probe.js, tag=QX探针, enabled=true
+event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@757f858/scripts/probe.js, tag=QX探针, enabled=true
 ```
 
 触发：`QX → 首页 → 风车 → 事件 → QX探针`。**必须 QX 隧道在跑**，否则 `event-*` 任务不触发（官方 `sample.conf:336` 写明了）。
