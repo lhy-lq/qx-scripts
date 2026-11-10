@@ -10,9 +10,9 @@ Quantumult X 自用脚本集合。全部脚本只用 QX 原生 API，纯 ES5，�
 镜像已实测可通（2026-11-09）：
 
 ```
-https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-dump-all.js
-https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-life-checkin.js
-https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/probe.js
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-dump-all.js
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-life-checkin.js
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/probe.js
 ```
 
 **为什么带一串 hash 而不是 `@main`**：`@main` 是分支引用，jsDelivr 的三个节点
@@ -82,10 +82,10 @@ qx-scripts/
 
 ```ini
 [rewrite_local]
-^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-life-checkin.js
+^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-life-checkin.js
 
 [task_local]
-17 7 * * * https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-life-checkin.js, tag=建行生活, enabled=true
+17 7 * * * https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-life-checkin.js, tag=建行生活, enabled=true
 
 [mitm]
 hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
@@ -106,7 +106,7 @@ hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
 并且带的是 commit hash 不是 `@main`：
 
 ```
-https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-life-checkin.js
+https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-life-checkin.js
 ```
 
 （`cdn.jsdelivr.net` 会 301 跳到被墙的 raw，别用。备选：
@@ -132,10 +132,10 @@ https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-life-checki
 
 ```ini
 [rewrite_local]
-^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-dump-all.js
+^https?:\/\/(.+\.)?ccb\.com(\.cn)?\/ url script-request-body https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-dump-all.js
 
 [task_local]
-event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/ccb-dump-all.js, tag=建行dump, enabled=true
+event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/ccb-dump-all.js, tag=建行dump, enabled=true
 
 [mitm]
 hostname = *.ccb.com, ccb.com, *.ccb.com.cn, ccb.com.cn
@@ -148,10 +148,20 @@ if the body is empty.`）—— `script-request-body` 只对带 body 的请求�
 
 | 轮次 | rewrite 类型 | 能看到 | 用途 |
 |---|---|---|---|
-| 第一轮 | `script-request-header` | 全部接口的 URL + method（通知里写「header 模式」） | 先确认签到接口在不在 |
-| 第二轮 | `script-request-body` | body 全文 + 签名 | 拿到能重放的报文 |
+| 第一轮 | `script-request-header` | 全部接口的 URL + method + query + **请求头全文** | 确认签到接口在不在；header 里往往就有鉴权/签名 |
+| 第二轮 | `script-request-body` | body 全文 + body 里的签名 | 拿到能重放的报文 |
 
 两轮写进同一个库，第二轮不会冲掉第一轮。
+
+**header 模式不是白抓的**（v5 改的）：`script-request-header` 拿不到 body，但能拿到
+`$request.headers`。签名/会话几乎都藏在头里（`Cookie`、`Authorization`、`tranCode`、
+`X-Sign` 这类），所以这一轮同样有价值 —— 通知里会多一行「头部:」，导出里也多一行
+「头部:」和一行「query:」。
+
+- 头里带 `cookie` / `authorization` / `token` / `sign` / `trancode` / `nonce` / `session` 的排在最前面，
+  `User-Agent`、`Content-Type` 这类每台机器都一样的排在后面
+- 单个 header 值超过 150 字符截断，一条请求的头总计超过 700 字符截断
+- 遍历用 `for...in`，不用 `headers["Cookie"]` —— QX 的 header key 大小写是不固定的
 
 - 逛的时候每见到**新的**接口弹一条通知，所以你知道自己走到哪一步了
 - 判定用 `keyOf(url, method, tx)`：有 txcode 用 txcode，**没有 txcode 也能弹**
@@ -159,6 +169,7 @@ if the body is empty.`）—— `script-request-body` 只对带 body 的请求�
   看起来就像「什么都没抓到」）
 - 最后那段「导出」是全部记录，按接口分组，每条带次数、签名、body 前 260 字、`[header模式]` 标记
 - 最多存 120 条，超出丢最老的
+- 导出里每条会带：次数、query、头部、签名、body 前 260 字、`[header模式]` 标记
 - 噪音路径（`/log` `/report` `/track` `/stat` 和图片样式）会记录但标记 `[噪音]`，不弹通知
 
 诊断完把这一段从配置里删掉，换回 `ccb-life-checkin.js` 那一段，否则每次开 App 都弹。
@@ -182,7 +193,7 @@ if the body is empty.`）—— `script-request-body` 只对带 body 的请求�
 
 ```ini
 [task_local]
-event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@71d0c55/scripts/probe.js, tag=QX探针, enabled=true
+event-interaction https://fastly.jsdelivr.net/gh/lhy-lq/qx-scripts@7f5b492/scripts/probe.js, tag=QX探针, enabled=true
 ```
 
 触发：`QX → 首页 → 风车 → 事件 → QX探针`。**必须 QX 隧道在跑**，否则 `event-*` 任务不触发（官方 `sample.conf:336` 写明了）。
@@ -244,6 +255,7 @@ node ccb-dump-test.js            # 全量抓取诊断器，23 用例
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
+| 2026-11-10 | v5 | `ccb-dump-all.js`：header 模式下把请求头也记下来。之前只记 URL 和 method，body 拿不到时等于什么都没拿到 —— 而签名/会话（cookie、token、tranCode）恰恰都在 header 里。新增 `pickHeaders()`（关键头排前、单值超 150 字符截断、总长 700 截断）与 `queryOf()`（保留 URL 上的 query），`$request.headers` 用 `for...in` 遍历（QX 的 header key 大小写不固定）；通知与导出都多了「头部:」「query:」两行。测试 44 → 58 断言全过。 |
 | 2026-11-10 | v4 | `ccb-dump-all.js` 修「抓到了却看不到」：新增 `keyOf(url, method, tx)`，无 txcode 的接口也弹通知（原来条件 `if (!noise && tx)`）；用 `$request.body === undefined` 识别 `script-request-header` 模式，通知与导出都标注；`TITLE_SEEN` 换 `CCB_DUMP_SEEN3`；上限 40 → 120。测试 29 → 44 项全过。实测确认 jsDelivr `@main` 三节点全部返回旧文件，本文与 `config/ccb-life.ini` 的地址一律改为 commit hash。真实接口域名更正为 `xc.ccblife.ccb.com`。 |
 | 2026-11-09 | v3.1 | 新增 `ccb-dump-all.js`（全量抓取诊断器，23 项离线测试全过）+ `tools/ccb-dump-test.js`；`config/ccb-life.ini` 加第 0 段诊断配置。动机：手动签到已经点过了，`ccb-life-checkin.js` 的抓包模式抓不到东西，需要先判断是 MitM 不通还是路径猜错。 |
 | 2026-11-09 | v3 | 重写建行生活签到。修了 v2 的致命问题（`$notification.post` 不是 QX API，通知全不弹）、无效的 `timeout: 15000`、ES6 语法；新增当日幂等、快照年龄判断、会话失效与网络失败分开报。14 项离线用例全过。 |
