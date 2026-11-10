@@ -355,6 +355,20 @@ function check(name, cond, detail) {
   check("导出含 头部 行", all.indexOf("头部: Cookie: SID=xyz") >= 0, all.slice(0, 400));
 }
 
+// --- 20. header 模式导出不写「body: (空)」---
+{
+  const seed = {
+    CCB_DUMP_V1: JSON.stringify([{
+      u: "dvfp.ftss.ccb.com/CCDSG/TransactionRoute_1", qs: "txcode=A1",
+      tx: "A1", m: "POST", b: "", hs: "Cookie: S=1", hd: 1, t: 1, n: 0
+    }])
+  };
+  const r = run({ seed });
+  const all = r.notifies.map(x => x.m).join("\n");
+  check("header 模式导出不写 body 空", all.indexOf("body: (空)") < 0, all.slice(0, 300));
+  check("header 模式导出说明不提供 body", all.indexOf("这个类型不提供") >= 0, all.slice(0, 300));
+}
+
 // ============ 输出 ============
 
 let pass = 0, fail = 0;
